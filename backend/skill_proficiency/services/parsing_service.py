@@ -8,7 +8,7 @@ import fitz
 from docx import Document
 from fastapi import HTTPException, UploadFile, status
 
-from utils.common import clamp
+from backend.skill_proficiency.utils.common import clamp
 
 
 def _strip_wrapping_quotes(value: str) -> str:

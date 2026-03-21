@@ -70,7 +70,8 @@ class TransitionRequest(BaseModel):
 
 
 class TransitionResources(BaseModel):
-	edge: str
+	from_skill: str = Field(serialization_alias="from")
+	to_skill: str = Field(serialization_alias="to")
 	resources: Dict[str, List[ResourceItem]]
 
 
@@ -360,7 +361,8 @@ async def get_resources(request: TransitionRequest) -> TransitionResponse:
 	resources = fetch_transition_resources(from_skill, to_skill)
 	return TransitionResponse(
 		result=TransitionResources(
-			edge=f"{from_skill}->{to_skill}",
+			from_skill=from_skill,
+			to_skill=to_skill,
 			resources=resources,
 		)
 	)
