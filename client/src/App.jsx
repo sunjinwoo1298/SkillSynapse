@@ -4,6 +4,7 @@ import Home from "./pages/Home.jsx";
 import Evaluate from "./pages/Evaluate.jsx";
 import SkillRatings from "./pages/SkillRatings.jsx";
 import LearningPath from "./pages/LearningPath.jsx";
+import LearningPathResources from "./pages/LearningPathResources.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 const router = createBrowserRouter([
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
     {
         path: "/learning-path",
         element: <LearningPath />,
+    },
+    {
+        path: "/learning-path/resources",
+        element: <LearningPathResources />,
     },
     {
         path: "*",

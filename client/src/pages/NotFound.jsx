@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 export default function NotFound() {
     return (
         <main className="min-h-screen bg-slate-100 px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
