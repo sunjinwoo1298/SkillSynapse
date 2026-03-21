@@ -29,9 +29,9 @@ export default function SkillRatings() {
     const completedCount = skillsToRate.filter((skill) => ratings[skill] !== undefined).length;
 
     return (
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#ecfeff,_#dbeafe_38%,_#cbd5e1_72%,_#0f172a_155%)] px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
+        <main className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfeff,#dbeafe_38%,#cbd5e1_72%,#0f172a_155%)] px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
             <div className="mx-auto flex max-w-6xl flex-col gap-5">
-                <header className="rounded-[2rem] border border-white/60 bg-white/80 p-5 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-6">
+                <header className="rounded-4xl border border-white/60 bg-white/80 p-5 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div className="max-w-3xl">
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700">
@@ -60,7 +60,7 @@ export default function SkillRatings() {
 
                 <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
                     <aside className="grid gap-4">
-                        <section className="rounded-[2rem] border border-slate-200/70 bg-slate-950 p-5 text-white shadow-xl shadow-slate-900/10">
+                        <section className="rounded-4xl border border-slate-200/70 bg-slate-950 p-5 text-white shadow-xl shadow-slate-900/10">
                             <div className="flex items-start gap-3">
                                 <div className="rounded-2xl bg-sky-400/15 p-3 text-sky-300">
                                     <FiSliders className="text-lg" />
@@ -81,7 +81,7 @@ export default function SkillRatings() {
                             </div>
                         </section>
 
-                        <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
+                        <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                 What this step does
                             </p>
@@ -99,7 +99,7 @@ export default function SkillRatings() {
                         </section>
                     </aside>
 
-                    <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
+                    <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
                         <div className="flex items-center justify-between gap-3">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
@@ -164,7 +164,7 @@ export default function SkillRatings() {
                             })}
                         </div>
 
-                        <div className="mt-6 flex flex-col gap-3 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,_#f8fafc,_#e0f2fe)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="mt-6 flex flex-col gap-3 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,#f8fafc,#e0f2fe)] p-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <p className="text-sm font-semibold text-slate-900">
                                     Ratings are captured locally for now

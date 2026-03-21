@@ -210,9 +210,9 @@ export default function Evaluate() {
     );
 
     return (
-        <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff,_#dbeafe_34%,_#cbd5e1_72%,_#0f172a_150%)] px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
+        <main className="min-h-screen bg-[radial-gradient(circle_at_top,#eff6ff,#dbeafe_34%,#cbd5e1_72%,#0f172a_150%)] px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
             <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                <header className="rounded-[2rem] border border-white/60 bg-white/80 p-5 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-6">
+                <header className="rounded-4xl border border-white/60 bg-white/80 p-5 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div className="max-w-3xl min-w-0">
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700">
@@ -308,7 +308,7 @@ export default function Evaluate() {
 
                 <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(22rem,1.05fr)]">
                     <div className="grid gap-4">
-                        <section className="flex min-w-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-5">
+                        <section className="flex min-w-0 flex-col overflow-hidden rounded-4xl border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur sm:p-5">
                             <div className="mb-3 flex items-center justify-between gap-4">
                                 <div className="min-w-0">
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
@@ -328,8 +328,8 @@ export default function Evaluate() {
                             </div>
                         </div>
 
-                        <div className="rounded-[1.5rem] bg-[linear-gradient(180deg,_rgba(248,250,252,0.95),_rgba(239,246,255,0.88))] p-3 sm:p-4">
-                            <div className="mx-auto aspect-square w-full max-w-[25rem] min-w-0">
+                        <div className="rounded-3xl bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(239,246,255,0.88))] p-3 sm:p-4">
+                            <div className="mx-auto aspect-square w-full max-w-100 min-w-0">
                                 <ResponsiveContainer width="100%" height="100%">
                                         <RadarChart data={radarSkills} outerRadius="69%">
                                             <PolarGrid gridType="polygon" stroke="#cbd5e1" />
@@ -365,7 +365,7 @@ export default function Evaluate() {
                             </div>
                         </section>
 
-                        <article className="flex min-w-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
+                        <article className="flex min-w-0 flex-col overflow-hidden rounded-4xl border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                     Effort vs payoff
@@ -385,7 +385,7 @@ export default function Evaluate() {
                                 ) : null}
                             </div>
 
-                            <div className="mt-4 h-[20rem] min-w-0 overflow-hidden rounded-[1.5rem] bg-[linear-gradient(180deg,_rgba(248,250,252,0.95),_rgba(254,249,195,0.65))] p-3 sm:h-[22rem]">
+                            <div className="mt-4 h-80 min-w-0 overflow-hidden rounded-3xl bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(254,249,195,0.65))] p-3 sm:h-88">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={effortPayoffData} barGap={10}>
                                         <CartesianGrid
@@ -425,7 +425,7 @@ export default function Evaluate() {
                     </div>
 
                     <aside className="grid min-w-0 gap-4">
-                        <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
+                        <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                 Continue the flow
                             </p>
@@ -437,7 +437,7 @@ export default function Evaluate() {
                                 more personal context.
                             </p>
 
-                            <div className="mt-5 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,_#0f172a,_#0f766e)] p-5 text-white shadow-lg shadow-sky-200/40">
+                            <div className="mt-5 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,#0f172a,#0f766e)] p-5 text-white shadow-lg shadow-sky-200/40">
                                 <p className="text-[11px] uppercase tracking-[0.22em] text-sky-200">
                                     Self-rating checkpoint
                                 </p>
@@ -457,7 +457,7 @@ export default function Evaluate() {
                             </div>
                         </section>
 
-                        <section className="flex min-w-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
+                        <section className="flex min-w-0 flex-col overflow-hidden rounded-4xl border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                     Skill breakdown
@@ -467,11 +467,11 @@ export default function Evaluate() {
                                 </span>
                             </div>
 
-                            <div className="grid max-h-[36rem] gap-3 overflow-y-auto pr-1">
+                            <div className="grid max-h-144 gap-3 overflow-y-auto pr-1">
                                 {skills.map((skill) => (
                                     <article
                                         key={skill.skill}
-                                        className="min-w-0 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-3"
+                                        className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50/90 p-3"
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
@@ -506,7 +506,7 @@ export default function Evaluate() {
                 </section>
 
                 <section className="grid gap-4 lg:grid-cols-2">
-                    <article className="flex min-w-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
+                    <article className="flex min-w-0 flex-col overflow-hidden rounded-4xl border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                 Learning time
@@ -525,7 +525,7 @@ export default function Evaluate() {
                             ) : null}
                         </div>
 
-                        <div className="mt-4 h-[22rem] min-w-0 overflow-hidden rounded-[1.5rem] bg-[linear-gradient(180deg,_rgba(248,250,252,0.95),_rgba(224,242,254,0.75))] p-3 sm:h-[24rem]">
+                        <div className="mt-4 h-88 min-w-0 overflow-hidden rounded-3xl bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(224,242,254,0.75))] p-3 sm:h-96">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
                                     data={timeComparisonData}
@@ -565,7 +565,7 @@ export default function Evaluate() {
                         </div>
                     </article>
 
-                    <article className="flex min-w-0 flex-col overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
+                    <article className="flex min-w-0 flex-col overflow-hidden rounded-4xl border border-slate-200/70 bg-white/85 p-4 shadow-xl shadow-slate-900/5 backdrop-blur">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
                                 Unlock potential
@@ -584,7 +584,7 @@ export default function Evaluate() {
                             ) : null}
                         </div>
 
-                        <div className="mt-4 h-[22rem] min-w-0 overflow-hidden rounded-[1.5rem] bg-[linear-gradient(180deg,_rgba(248,250,252,0.95),_rgba(240,253,244,0.75))] p-3 sm:h-[24rem]">
+                        <div className="mt-4 h-88 min-w-0 overflow-hidden rounded-3xl bg-[linear-gradient(180deg,rgba(248,250,252,0.95),rgba(240,253,244,0.75))] p-3 sm:h-96">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
                                     data={unlockPotentialData}
