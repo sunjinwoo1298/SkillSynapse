@@ -32,3 +32,4 @@ async def extract_skills(payload: SkillExtractionRequest) -> SkillExtractionResp
         settings.max_output_skills,
     )
     return SkillExtractionResponse(skills=reduced)
+
