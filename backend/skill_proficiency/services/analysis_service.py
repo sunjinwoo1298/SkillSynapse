@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -9,8 +10,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from models import AnalyzeSkillsResponse, SkillMetrics
 from utils.common import (
-    NEAR_STRONG,
-    NEAR_WEAK,
     YEAR_PATTERN,
     clamp,
     classify_base_time_days,
@@ -18,6 +17,31 @@ from utils.common import (
 )
 
 EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+
+PROJECT_KEYWORDS = {"project", "capstone", "built", "developed", "implemented", "application"}
+REAL_WORLD_KEYWORDS = {"intern", "internship", "client", "production", "deployed", "company", "freelance", "open-source"}
+IMPACT_KEYWORDS = {"improved", "increased", "reduced", "optimized", "saved", "cut", "boosted", "accuracy", "latency"}
+PROBLEM_SOLVING_KEYWORDS = {"solved", "problem", "debugged", "troubleshoot", "optimized", "scaled", "designed", "refactor"}
+DEPTH_KEYWORDS = {"architecture", "design pattern", "internals", "distributed", "concurrency", "profiling", "optimization", "benchmark"}
+
+SECTION_BUCKETS: dict[str, set[str]] = {
+    "skills": {"skills", "technical skills", "tooling"},
+    "projects": {"projects", "project", "capstone"},
+    "experience": {"experience", "internship", "work", "employment"},
+    "education": {"education", "coursework", "academic"},
+}
+
+TOOL_ECOSYSTEM_MAP: dict[str, set[str]] = {
+    "python": {"numpy", "pandas", "django", "flask", "fastapi", "pytest", "scikit-learn"},
+    "sql": {"postgresql", "mysql", "sqlite", "sql server", "oracle", "snowflake"},
+    "machine learning": {"scikit-learn", "xgboost", "lightgbm", "mlflow", "feature engineering"},
+    "deep learning": {"tensorflow", "pytorch", "keras", "cnn", "rnn", "transformer"},
+    "tensorflow": {"keras", "tf.data", "tensorboard", "tpu"},
+    "pandas": {"numpy", "matplotlib", "seaborn", "jupyter"},
+    "data visualization": {"matplotlib", "seaborn", "plotly", "tableau", "power bi"},
+    "spark": {"pyspark", "hadoop", "databricks", "kafka"},
+    "big data": {"spark", "hadoop", "kafka", "hive", "airflow"},
+}
 
 
 def build_keyword_processor(required_skills: list[str]) -> KeywordProcessor:
@@ -33,15 +57,25 @@ def get_context_window(text: str, start: int, end: int, radius: int = 80) -> str
     return text[left:right]
 
 
+def _contains_any(haystack: str, tokens: set[str]) -> bool:
+    return any(token in haystack for token in tokens)
+
+
 def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[str, dict[str, float]]:
+    normalized_text = text.lower()
     kp = build_keyword_processor(required_skills)
-    matches = kp.extract_keywords(text, span_info=True)
+    matches = kp.extract_keywords(normalized_text, span_info=True)
 
     evidence: dict[str, dict[str, Any]] = {
         skill.lower(): {
             "mentions": 0,
-            "context_score": 0,
             "latest_year": None,
+            "project_usage": 0,
+            "real_world": 0,
+            "impact": 0,
+            "problem_solving": 0,
+            "depth": 0,
+            "section_hits": set(),
         }
         for skill in required_skills
     }
@@ -50,11 +84,22 @@ def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[s
         item = evidence[found_skill]
         item["mentions"] += 1
 
-        window = get_context_window(text, start, end)
-        if any(token in window for token in NEAR_STRONG):
-            item["context_score"] += 2
-        elif any(token in window for token in NEAR_WEAK):
-            item["context_score"] += 1
+        window = get_context_window(normalized_text, start, end)
+
+        if _contains_any(window, PROJECT_KEYWORDS):
+            item["project_usage"] = 1
+        if _contains_any(window, REAL_WORLD_KEYWORDS):
+            item["real_world"] = 1
+        if _contains_any(window, IMPACT_KEYWORDS) and any(ch.isdigit() for ch in window):
+            item["impact"] = 1
+        if _contains_any(window, PROBLEM_SOLVING_KEYWORDS):
+            item["problem_solving"] = 1
+        if _contains_any(window, DEPTH_KEYWORDS):
+            item["depth"] = 1
+
+        for bucket, tokens in SECTION_BUCKETS.items():
+            if _contains_any(window, tokens):
+                item["section_hits"].add(bucket)
 
         years = [int(y) for y in YEAR_PATTERN.findall(window)]
         if years:
@@ -63,32 +108,47 @@ def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[s
                 item["latest_year"] = latest
 
     scored: dict[str, dict[str, float]] = {}
+    current_year = datetime.now().year
+
     for skill, item in evidence.items():
-        latest_year = item["latest_year"]
-        if latest_year is None:
-            recency = 0
-        elif latest_year >= 2024:
-            recency = 2
-        elif latest_year >= 2022:
-            recency = 1
-        else:
-            recency = 0
-
         mentions = int(item["mentions"])
-        context_score = int(item["context_score"])
-        m = min(mentions, 5)
+        latest_year = item["latest_year"]
 
-        score_model = min(1.5 * m + context_score + recency, 10.0)
+        explicit_mention = 1.0 if mentions > 0 else 0.0
+        project_usage = float(item["project_usage"])
+        real_world_application = float(item["real_world"])
+        multiple_usage = 1.0 if mentions >= 2 else 0.0
+        recent_usage = 1.0 if latest_year is not None and latest_year >= current_year - 2 else 0.0
+        impact_evidence = float(item["impact"])
 
-        mentions_norm = min(mentions / 5.0, 1.0)
-        context_norm = min(context_score / 3.0, 1.0)
-        recency_norm = recency / 2.0
-        confidence = clamp(0.4 * mentions_norm + 0.3 * context_norm + 0.3 * recency_norm, 0.0, 1.0)
+        ecosystem_tokens = TOOL_ECOSYSTEM_MAP.get(skill, set())
+        tool_ecosystem = 1.0 if ecosystem_tokens and _contains_any(normalized_text, ecosystem_tokens) else 0.0
+
+        problem_solving = float(item["problem_solving"])
+        depth_indicator = float(item["depth"])
+        consistency = 1.0 if len(item["section_hits"]) >= 2 else 0.0
+
+        score_model = (
+            explicit_mention
+            + project_usage
+            + real_world_application
+            + multiple_usage
+            + recent_usage
+            + impact_evidence
+            + tool_ecosystem
+            + problem_solving
+            + depth_indicator
+            + consistency
+        )
+
+        mentions_norm = min(mentions / 4.0, 1.0)
+        indicator_density = score_model / 10.0
+        confidence = clamp(0.5 * indicator_density + 0.3 * mentions_norm + 0.2 * explicit_mention, 0.0, 1.0)
 
         scored[skill] = {
             "mentions": float(mentions),
-            "context_score": float(context_score),
-            "recency_score": float(recency),
+            "recent_usage": float(recent_usage),
+            "consistency": float(consistency),
             "score_model": float(score_model),
             "confidence": float(confidence),
         }
@@ -123,7 +183,6 @@ def finalize_metrics(
     closest_map: dict[str, str | None],
 ) -> AnalyzeSkillsResponse:
     all_skills: dict[str, SkillMetrics] = {}
-    skill_gaps: dict[str, dict[str, Any]] = {}
     needs_feedback: list[str] = []
 
     has_feedback = bool(user_feedback)
@@ -135,22 +194,64 @@ def finalize_metrics(
             {
                 "score_model": 0.0,
                 "confidence": 0.0,
+                "mentions": 0.0,
+                "recent_usage": 0.0,
+                "consistency": 0.0,
             },
         )
 
         score_model = float(item["score_model"])
         confidence = float(item["confidence"])
-
-        if not has_feedback and confidence < 0.6 and 2.0 <= score_model <= 7.0:
-            needs_feedback.append(skill)
+        mentions = float(item.get("mentions", 0.0))
+        recent_usage = float(item.get("recent_usage", 0.0))
+        consistency = float(item.get("consistency", 0.0))
+        sim = clamp(sim_map.get(key, 0.0), 0.0, 1.0)
 
         if key in user_feedback:
             score = 0.6 * score_model + 0.4 * user_feedback[key]
             confidence = 0.9
         else:
-            score = score_model
+            # Robust no-feedback score: blend rubric evidence with mention strength and semantic support.
+            rubric_norm = clamp(score_model / 10.0, 0.0, 1.0)
+            mention_strength = min(mentions / 3.0, 1.0)
+            explicit_mention = 1.0 if mentions > 0.0 else 0.0
 
-        sim = clamp(sim_map.get(key, 0.0), 0.0, 1.0)
+            # If skill is not explicitly mentioned, semantic similarity should not dominate.
+            semantic_support = sim if explicit_mention > 0 else min(sim, 0.55)
+
+            evidence_strength = (
+                0.55 * rubric_norm
+                + 0.25 * mention_strength
+                + 0.10 * consistency
+                + 0.10 * recent_usage
+            )
+
+            score = 10.0 * (0.80 * evidence_strength + 0.20 * semantic_support)
+
+            # Prevent high scores for skills inferred only via semantic proximity.
+            if explicit_mention == 0.0:
+                score = min(score, 4.0)
+
+            # Stabilize strong evidence cases against underestimation.
+            if mentions >= 3.0 and score_model >= 6.0:
+                score = max(score, 6.0)
+
+            # Recalibrate confidence in no-feedback mode using robustness signals.
+            confidence = clamp(
+                0.45 * confidence
+                + 0.25 * mention_strength
+                + 0.20 * explicit_mention
+                + 0.10 * consistency,
+                0.0,
+                1.0,
+            )
+
+            if explicit_mention == 0.0:
+                confidence = min(confidence, 0.45)
+
+            if confidence < 0.65 and 2.0 <= score <= 7.0:
+                needs_feedback.append(skill)
+
         closest_skill = closest_map.get(key)
         related_score = float(evidence.get(closest_skill or "", {}).get("score_model", 0.0))
 
@@ -172,7 +273,11 @@ def finalize_metrics(
         )
         all_skills[skill] = metric
 
-        if metric.score < 7.0:
+    skill_gaps: dict[str, dict[str, Any]] = {}
+    avg_score = sum(metric.score for metric in all_skills.values()) / len(all_skills) if all_skills else 0.0
+
+    for skill, metric in all_skills.items():
+        if metric.score < avg_score:
             skill_gaps[skill] = {
                 "difficulty": metric.difficulty,
                 "time": metric.time,
