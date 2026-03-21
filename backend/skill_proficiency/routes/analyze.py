@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 
-from models import AnalyzeSkillsResponse
-from services.analysis_service import build_similarity_maps, detect_skills_with_evidence, finalize_metrics
-from services.parsing_service import extract_resume_text, parse_feedback, parse_skills
-from utils.common import normalize_text
+from backend.skill_proficiency.models import AnalyzeSkillsResponse
+from backend.skill_proficiency.services.analysis_service import (
+    build_similarity_maps,
+    detect_skills_with_evidence,
+    finalize_metrics,
+)
+from backend.skill_proficiency.services.parsing_service import extract_resume_text, parse_feedback, parse_skills
+from backend.skill_proficiency.utils.common import normalize_text
 
 router = APIRouter()
 

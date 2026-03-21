@@ -6,15 +6,92 @@ from collections import deque
 
 WHITESPACE_PATTERN = re.compile(r"\s+")
 YEAR_PATTERN = re.compile(r"\b(20\d{2})\b")
+NON_ALNUM_PATTERN = re.compile(r"[^a-z0-9]+")
+PAREN_PATTERN = re.compile(r"[()]")
 
 NEAR_STRONG = ("project", "built", "developed")
 NEAR_WEAK = ("internship", "experience")
 
 UNLOCK_GRAPH: dict[str, list[str]] = {
-    "python": ["numpy", "pandas", "ml"],
-    "ml": ["deep learning", "nlp"],
+    "python programming": ["data preprocessing", "feature engineering", "pytorch", "tensorflow", "version control git"],
+    "linear algebra": ["machine learning fundamentals", "deep learning", "optimization techniques", "mathematical modeling"],
+    "probability theory": ["statistics", "machine learning fundamentals", "model evaluation and validation"],
+    "statistics": ["machine learning fundamentals", "model evaluation and validation", "experiment design"],
+    "data structures and algorithms": ["optimization techniques", "distributed computing"],
+    "data preprocessing": ["feature engineering", "model evaluation and validation"],
+    "feature engineering": ["machine learning fundamentals", "model evaluation and validation"],
+    "machine learning fundamentals": ["deep learning", "hyperparameter tuning", "model evaluation and validation", "experiment design"],
+    "deep learning": ["pytorch", "tensorflow", "distributed computing"],
+    "optimization techniques": ["hyperparameter tuning", "distributed computing"],
+    "research paper reading": ["scientific writing", "experiment design"],
+    "scientific writing": ["experiment design"],
+    "experiment design": ["model evaluation and validation", "hyperparameter tuning"],
+    "version control git": ["distributed computing"],
+    "mathematical modeling": ["machine learning fundamentals", "deep learning"],
+    # Keep prior generic paths.
     "docker": ["kubernetes", "ci/cd"],
+    "ml": ["deep learning", "nlp"],
+    "python": ["numpy", "pandas", "machine learning fundamentals"],
 }
+
+SKILL_ALIASES: dict[str, str] = {
+    "python": "python programming",
+    "python programming": "python programming",
+    "machine learning": "machine learning fundamentals",
+    "ml": "machine learning fundamentals",
+    "version control": "version control git",
+    "version control git": "version control git",
+    "git": "version control git",
+    "tensorflow": "tensorflow",
+    "pytorch": "pytorch",
+    "dsa": "data structures and algorithms",
+}
+
+
+def normalize_skill_key(skill: str) -> str:
+    s = PAREN_PATTERN.sub(" ", skill.lower())
+    s = NON_ALNUM_PATTERN.sub(" ", s)
+    return WHITESPACE_PATTERN.sub(" ", s).strip()
+
+
+def _build_normalized_graph(graph: dict[str, list[str]]) -> dict[str, list[str]]:
+    normalized: dict[str, list[str]] = {}
+    for key, neighbors in graph.items():
+        nk = normalize_skill_key(key)
+        normalized[nk] = [normalize_skill_key(n) for n in neighbors]
+    return normalized
+
+
+NORMALIZED_UNLOCK_GRAPH = _build_normalized_graph(UNLOCK_GRAPH)
+
+
+def _resolve_skill_key(skill: str, graph: dict[str, list[str]]) -> str:
+    raw = normalize_skill_key(skill)
+
+    alias = SKILL_ALIASES.get(raw)
+    if alias:
+        resolved = normalize_skill_key(alias)
+        if resolved in graph:
+            return resolved
+
+    if raw in graph:
+        return raw
+
+    # Fuzzy fallback: choose graph key with strongest token overlap.
+    raw_tokens = set(raw.split())
+    best_key = raw
+    best_overlap = 0.0
+
+    for candidate in graph:
+        cand_tokens = set(candidate.split())
+        if not cand_tokens:
+            continue
+        overlap = len(raw_tokens & cand_tokens) / len(raw_tokens | cand_tokens)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_key = candidate
+
+    return best_key if best_overlap >= 0.4 else raw
 
 
 def normalize_text(text: str) -> str:
@@ -51,8 +128,12 @@ def format_time(days: float) -> str:
 
 
 def compute_unlock_power(skill: str, graph: dict[str, list[str]] | None = None) -> int:
-    graph = graph or UNLOCK_GRAPH
-    start = skill.lower()
+    graph = graph or NORMALIZED_UNLOCK_GRAPH
+    start = _resolve_skill_key(skill, graph)
+
+    if start not in graph:
+        return 0
+
     visited: set[str] = set()
     queue = deque([start])
 
