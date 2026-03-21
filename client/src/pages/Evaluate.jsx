@@ -137,6 +137,10 @@ export default function Evaluate() {
         state?.evaluationResult && Object.keys(state.evaluationResult).length
             ? state.evaluationResult
             : sampleEvaluationResult;
+    const skillGaps = Array.isArray(evaluationResult.skill_gaps)
+        ? evaluationResult.skill_gaps
+        : [];
+    const hasSkillGaps = skillGaps.length > 0;
 
     const skills = Object.entries(evaluationResult.all_skills ?? {}).map(
         ([skill, details]) => {
@@ -427,31 +431,36 @@ export default function Evaluate() {
                     <aside className="grid min-w-0 gap-4">
                         <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
                             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-                                Continue the flow
+                                {hasSkillGaps ? "Continue the flow" : "Ready for the next step"}
                             </p>
                             <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
-                                Add your own confidence ratings
+                                {hasSkillGaps
+                                    ? "Add your own confidence ratings"
+                                    : "Good work, you are in a strong position"}
                             </h2>
                             <p className="mt-3 text-sm leading-6 text-slate-600">
-                                The next step asks you to rate the skills that need
-                                more personal context.
+                                {hasSkillGaps
+                                    ? "The next step asks you to rate the skills that need more personal context."
+                                    : "There are no flagged skill gaps in this evaluation result, so you can move directly into the learning path."}
                             </p>
 
                             <div className="mt-5 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,#0f172a,#0f766e)] p-5 text-white shadow-lg shadow-sky-200/40">
                                 <p className="text-[11px] uppercase tracking-[0.22em] text-sky-200">
-                                    Self-rating checkpoint
+                                    {hasSkillGaps ? "Self-rating checkpoint" : "Direct path unlocked"}
                                 </p>
                                 <p className="mt-2 max-w-sm text-sm leading-6 text-slate-100">
-                                    Bring in your own judgment before we move to the
-                                    next route. This is where the system asks, "How
-                                    strong do you actually feel in these skills?"
+                                    {hasSkillGaps
+                                        ? 'Bring in your own judgment before we move to the next route. This is where the system asks, "How strong do you actually feel in these skills?"'
+                                        : "Your evaluation looks healthy enough to skip the extra self-rating checkpoint and head straight into the next learning plan."}
                                 </p>
                                 <Link
-                                    to="/skill-rating"
+                                    to={hasSkillGaps ? "/skill-rating" : "/learning-path"}
                                     state={{ evaluationResult }}
                                     className="mt-5 inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-100"
                                 >
-                                    Rate flagged skills
+                                    {hasSkillGaps
+                                        ? "Rate flagged skills"
+                                        : "Go to learning path"}
                                     <FiChevronRight className="text-base" />
                                 </Link>
                             </div>

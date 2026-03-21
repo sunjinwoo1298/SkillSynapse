@@ -3,16 +3,17 @@ import { Link, useLocation } from "react-router";
 import {
     FiArrowLeft,
     FiChevronRight,
-    FiSliders,
 } from "react-icons/fi";
+import { useNavigate } from "react-router";
 
 const sampleSkillsToRate = ["Docker", "Kubernetes", "System Design"];
+const SLIDER_THUMB_SIZE = 20;
 
 function extractSkillsToRate(evaluationResult) {
-    const backendSkills = evaluationResult?.skills_to_rate;
+    const skillGaps = evaluationResult?.skill_gaps;
 
-    if (Array.isArray(backendSkills) && backendSkills.length > 0) {
-        return backendSkills.map((skill) =>
+    if (Array.isArray(skillGaps) && skillGaps.length > 0) {
+        return skillGaps.map((skill) =>
             typeof skill === "string" ? skill : skill.name ?? skill.skill ?? "Skill",
         );
     }
@@ -25,8 +26,27 @@ export default function SkillRatings() {
     const evaluationResult = state?.evaluationResult;
     const skillsToRate = extractSkillsToRate(evaluationResult);
     const [ratings, setRatings] = useState({});
-
-    const completedCount = skillsToRate.filter((skill) => ratings[skill] !== undefined).length;
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const navigate = useNavigate();
+    function handleSkillRatingSubmit() {
+        const response = fetch(`${backendUrl}/api/submit-ratings`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                ratings,
+            }),
+        });
+        if (response.ok) {
+            // Handle successful submission (e.g., navigate to learning path)
+            const result = response.json();
+            navigate("/learning-path", { state: { learningPath: result.learningPath } });
+        } else {
+            console.error("Error submitting ratings:", response.statusText);
+            // Handle error (e.g., display error message to user)
+        }
+    }
 
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfeff,#dbeafe_38%,#cbd5e1_72%,#0f172a_155%)] px-4 py-4 text-slate-900 sm:px-6 sm:py-6">
@@ -41,9 +61,9 @@ export default function SkillRatings() {
                                 Self-Rating Checkpoint
                             </h1>
                             <p className="mt-2 text-sm leading-6 text-slate-600">
-                                The backend can decide which skills need more context
+                                We can decide which skills need more context
                                 from you. This screen gives the user a quick way to
-                                add confidence ratings before the next stage.
+                                add confidence ratings before the next stage to minimize mistakes in the learning path recommendations.
                             </p>
                         </div>
 
@@ -58,48 +78,7 @@ export default function SkillRatings() {
                     </div>
                 </header>
 
-                <section className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
-                    <aside className="grid gap-4">
-                        <section className="rounded-4xl border border-slate-200/70 bg-slate-950 p-5 text-white shadow-xl shadow-slate-900/10">
-                            <div className="flex items-start gap-3">
-                                <div className="rounded-2xl bg-sky-400/15 p-3 text-sky-300">
-                                    <FiSliders className="text-lg" />
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
-                                        Progress
-                                    </p>
-                                    <h2 className="mt-2 text-2xl font-semibold">
-                                        {completedCount}/{skillsToRate.length} rated
-                                    </h2>
-                                    <p className="mt-2 text-sm leading-6 text-slate-300">
-                                        Quick confidence signals are enough here.
-                                        The goal is to add your perspective, not to
-                                        test you again.
-                                    </p>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
-                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
-                                What this step does
-                            </p>
-                            <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-600">
-                                <div className="rounded-3xl bg-slate-50 p-4">
-                                    Gives the learning flow some real-world context from you.
-                                </div>
-                                <div className="rounded-3xl bg-slate-50 p-4">
-                                    Helps separate low visibility from low ability.
-                                </div>
-                                <div className="rounded-3xl bg-slate-50 p-4">
-                                    Leaves room for backend-selected skills to plug in later.
-                                </div>
-                            </div>
-                        </section>
-                    </aside>
-
-                    <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
+                <section className="rounded-4xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur">
                         <div className="flex items-center justify-between gap-3">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
@@ -109,15 +88,12 @@ export default function SkillRatings() {
                                     Confidence snapshot
                                 </h2>
                             </div>
-                            <div className="rounded-full bg-sky-50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
-                                1 to 10 scale
-                            </div>
                         </div>
 
                         <div className="mt-5 grid gap-4">
                             {skillsToRate.map((skill) => {
                                 const selected = ratings[skill];
-                                const sliderValue = selected ?? 5;
+                                const sliderValue = selected ?? 0;
 
                                 return (
                                     <article
@@ -141,7 +117,7 @@ export default function SkillRatings() {
                                         <div className="mt-5">
                                             <input
                                                 type="range"
-                                                min="1"
+                                                min="0"
                                                 max="10"
                                                 step="1"
                                                 value={sliderValue}
@@ -151,11 +127,19 @@ export default function SkillRatings() {
                                                         [skill]: Number(event.target.value),
                                                     }))
                                                 }
-                                                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-sky-100 accent-sky-600"
+                                                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-sky-100 accent-sky-600 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-sky-600 [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-sky-100 [&::-webkit-slider-thumb]:-mt-1.5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-sky-600 [&::-webkit-slider-thumb]:shadow-md"
                                             />
-                                            <div className="mt-2 grid grid-cols-10 text-center text-xs font-medium text-slate-500">
-                                                {Array.from({ length: 10 }, (_, index) => (
-                                                    <span key={index + 1}>{index + 1}</span>
+                                            <div className="relative mt-2 h-4 text-xs font-medium text-slate-500">
+                                                {Array.from({ length: 11 }, (_, index) => (
+                                                    <span
+                                                        key={index}
+                                                        className="absolute top-0 -translate-x-1/2"
+                                                        style={{
+                                                            left: `calc(${SLIDER_THUMB_SIZE / 2}px + ((100% - ${SLIDER_THUMB_SIZE}px) * ${index} / 10))`,
+                                                        }}
+                                                    >
+                                                        {index}
+                                                    </span>
                                                 ))}
                                             </div>
                                         </div>
@@ -164,24 +148,15 @@ export default function SkillRatings() {
                             })}
                         </div>
 
-                        <div className="mt-6 flex flex-col gap-3 rounded-[1.75rem] border border-sky-200 bg-[linear-gradient(135deg,#f8fafc,#e0f2fe)] p-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-slate-900">
-                                    Ratings are captured locally for now
-                                </p>
-                                <p className="mt-1 text-sm text-slate-600">
-                                    This screen is ready for backend-provided skills whenever that payload is added.
-                                </p>
-                            </div>
-                            <Link
-                                to="/"
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                onClick={handleSkillRatingSubmit}
                                 className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700"
                             >
-                                Finish for now
+                                Continue to learning path
                                 <FiChevronRight className="text-base" />
-                            </Link>
+                            </button>
                         </div>
-                    </section>
                 </section>
             </div>
         </main>
