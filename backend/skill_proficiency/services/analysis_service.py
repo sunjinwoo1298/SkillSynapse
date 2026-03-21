@@ -1,47 +1,206 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
 from typing import Any
 
 import numpy as np
 from flashtext import KeywordProcessor
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableSequence
+from langchain_google_genai import ChatGoogleGenerativeAI
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from models import AnalyzeSkillsResponse, SkillMetrics
-from utils.common import (
+from backend.skill_proficiency.models import AnalyzeSkillsResponse, SkillMetrics
+from backend.skill_proficiency.utils.common import (
     YEAR_PATTERN,
     clamp,
     classify_base_time_days,
     compute_unlock_power,
 )
+from backend.utils.config import settings
 
 EMBEDDING_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
 
-PROJECT_KEYWORDS = {"project", "capstone", "built", "developed", "implemented", "application"}
-REAL_WORLD_KEYWORDS = {"intern", "internship", "client", "production", "deployed", "company", "freelance", "open-source"}
-IMPACT_KEYWORDS = {"improved", "increased", "reduced", "optimized", "saved", "cut", "boosted", "accuracy", "latency"}
-PROBLEM_SOLVING_KEYWORDS = {"solved", "problem", "debugged", "troubleshoot", "optimized", "scaled", "designed", "refactor"}
-DEPTH_KEYWORDS = {"architecture", "design pattern", "internals", "distributed", "concurrency", "profiling", "optimization", "benchmark"}
+GEMINI_RUBRIC_INDICATORS: tuple[str, ...] = (
+    "explicit_mention",
+    "project_usage",
+    "real_world_application",
+    "multiple_usage",
+    "recent_usage",
+    "impact_evidence",
+    "tool_ecosystem",
+    "problem_solving",
+    "depth_indicator",
+    "consistency",
+)
 
-SECTION_BUCKETS: dict[str, set[str]] = {
-    "skills": {"skills", "technical skills", "tooling"},
-    "projects": {"projects", "project", "capstone"},
-    "experience": {"experience", "internship", "work", "employment"},
-    "education": {"education", "coursework", "academic"},
-}
 
-TOOL_ECOSYSTEM_MAP: dict[str, set[str]] = {
-    "python": {"numpy", "pandas", "django", "flask", "fastapi", "pytest", "scikit-learn"},
-    "sql": {"postgresql", "mysql", "sqlite", "sql server", "oracle", "snowflake"},
-    "machine learning": {"scikit-learn", "xgboost", "lightgbm", "mlflow", "feature engineering"},
-    "deep learning": {"tensorflow", "pytorch", "keras", "cnn", "rnn", "transformer"},
-    "tensorflow": {"keras", "tf.data", "tensorboard", "tpu"},
-    "pandas": {"numpy", "matplotlib", "seaborn", "jupyter"},
-    "data visualization": {"matplotlib", "seaborn", "plotly", "tableau", "power bi"},
-    "spark": {"pyspark", "hadoop", "databricks", "kafka"},
-    "big data": {"spark", "hadoop", "kafka", "hive", "airflow"},
-}
+class GeminiEvidenceScorer:
+    def __init__(self) -> None:
+        self.chat_models = self._build_chat_models(settings.gemini_chat_model)
+        self.chat_model_idx = 0
+        self.chain: RunnableSequence | None = None
+
+        self.prompt = PromptTemplate.from_template(
+            """
+Task: Evaluate resume evidence for each required skill using the rubric indicators below.
+
+Rubric indicators (binary 0 or 1):
+- explicit_mention: Skill appears explicitly.
+- project_usage: Used in projects/capstone/builds.
+- real_world_application: Used in internship/work/client/production settings.
+- multiple_usage: Mentioned in multiple distinct contexts.
+- recent_usage: Evidence that usage is recent.
+- impact_evidence: Evidence of measurable impact/outcomes.
+- tool_ecosystem: Related tools/frameworks around the skill are used.
+- problem_solving: Skill linked to solving/debugging/optimization work.
+- depth_indicator: Evidence of advanced/deep usage.
+- consistency: Skill appears consistently across resume sections.
+
+Return ONLY valid JSON object, no markdown, no explanation.
+
+Expected format:
+{{
+  "skill_name": {{
+    "explicit_mention": 0,
+    "project_usage": 0,
+    "real_world_application": 0,
+    "multiple_usage": 0,
+    "recent_usage": 0,
+    "impact_evidence": 0,
+    "tool_ecosystem": 0,
+    "problem_solving": 0,
+    "depth_indicator": 0,
+    "consistency": 0,
+    "confidence": 0.0
+  }}
+}}
+
+Rules:
+- Use only evidence present in the resume text.
+- Keys must be lowercase and exactly match the provided required skills.
+- confidence must be between 0.0 and 1.0.
+
+Required skills (lowercase JSON array):
+{skills_json}
+
+Resume text:
+{text}
+""".strip()
+        )
+
+        if settings.gemini_api_key and self.chat_models:
+            self.chain = self._build_chain(self.chat_models[self.chat_model_idx])
+
+    def score_skills(self, text: str, required_skills: list[str]) -> dict[str, dict[str, float]]:
+        if not settings.gemini_api_key:
+            raise RuntimeError("GEMINI_API_KEY is required for Gemini-based proficiency scoring")
+        if self.chain is None:
+            raise RuntimeError("Gemini scoring chain is not available")
+
+        payload = {
+            "skills_json": json.dumps([s.lower() for s in required_skills]),
+            "text": text,
+        }
+
+        raw = ""
+        while True:
+            try:
+                raw = self.chain.invoke(payload)
+                break
+            except Exception as exc:
+                if self._is_rate_limit_error(exc) and self.chat_model_idx + 1 < len(self.chat_models):
+                    self.chat_model_idx += 1
+                    self.chain = self._build_chain(self.chat_models[self.chat_model_idx])
+                    continue
+                raise
+
+        parsed = self._parse_json_object(raw)
+        if parsed is None:
+            parsed = self._parse_first_json_object(raw)
+        if parsed is None:
+            raise RuntimeError("Failed to parse Gemini scoring output as JSON object")
+
+        normalized: dict[str, dict[str, float]] = {}
+        for skill in required_skills:
+            key = skill.lower()
+            item = parsed.get(key, {}) if isinstance(parsed, dict) else {}
+            if not isinstance(item, dict):
+                item = {}
+
+            normalized[key] = {
+                indicator: float(1 if _to_float(item.get(indicator, 0.0)) >= 0.5 else 0)
+                for indicator in GEMINI_RUBRIC_INDICATORS
+            }
+            normalized[key]["confidence"] = clamp(_to_float(item.get("confidence", 0.0)), 0.0, 1.0)
+
+        return normalized
+
+    def _build_chain(self, model_name: str) -> RunnableSequence:
+        llm = ChatGoogleGenerativeAI(
+            google_api_key=settings.gemini_api_key,
+            model=model_name.removeprefix("models/"),
+            temperature=0,
+        )
+        return self.prompt | llm | StrOutputParser()
+
+    @staticmethod
+    def _is_rate_limit_error(exc: Exception) -> bool:
+        err = str(exc).lower()
+        return "429" in err or "resource_exhausted" in err or "rate" in err
+
+    @staticmethod
+    def _parse_json_object(value: str) -> dict[str, Any] | None:
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+
+    @staticmethod
+    def _parse_first_json_object(value: str) -> dict[str, Any] | None:
+        match = re.search(r"\{[\s\S]*\}", value)
+        if not match:
+            return None
+        return GeminiEvidenceScorer._parse_json_object(match.group(0))
+
+    @staticmethod
+    def _build_chat_models(primary: str) -> list[str]:
+        candidates = [
+            primary,
+            "models/gemini-2.5-flash",
+            "models/gemini-2.5-flash-lite",
+            "models/gemini-flash-latest",
+            "models/gemini-flash-lite-latest",
+            "models/gemini-2.5-pro",
+            "models/gemini-pro-latest",
+            "models/gemini-3-flash-preview",
+            "models/gemini-3.1-flash-lite-preview",
+        ]
+
+        models: list[str] = []
+        seen: set[str] = set()
+        for model in candidates:
+            key = model.strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            models.append(key)
+        return models
+
+
+def _to_float(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+GEMINI_EVIDENCE_SCORER = GeminiEvidenceScorer()
 
 
 def build_keyword_processor(required_skills: list[str]) -> KeywordProcessor:
@@ -57,25 +216,17 @@ def get_context_window(text: str, start: int, end: int, radius: int = 80) -> str
     return text[left:right]
 
 
-def _contains_any(haystack: str, tokens: set[str]) -> bool:
-    return any(token in haystack for token in tokens)
-
-
 def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[str, dict[str, float]]:
     normalized_text = text.lower()
     kp = build_keyword_processor(required_skills)
     matches = kp.extract_keywords(normalized_text, span_info=True)
 
+    gemini_scores = GEMINI_EVIDENCE_SCORER.score_skills(text=text, required_skills=required_skills)
+
     evidence: dict[str, dict[str, Any]] = {
         skill.lower(): {
             "mentions": 0,
             "latest_year": None,
-            "project_usage": 0,
-            "real_world": 0,
-            "impact": 0,
-            "problem_solving": 0,
-            "depth": 0,
-            "section_hits": set(),
         }
         for skill in required_skills
     }
@@ -85,21 +236,6 @@ def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[s
         item["mentions"] += 1
 
         window = get_context_window(normalized_text, start, end)
-
-        if _contains_any(window, PROJECT_KEYWORDS):
-            item["project_usage"] = 1
-        if _contains_any(window, REAL_WORLD_KEYWORDS):
-            item["real_world"] = 1
-        if _contains_any(window, IMPACT_KEYWORDS) and any(ch.isdigit() for ch in window):
-            item["impact"] = 1
-        if _contains_any(window, PROBLEM_SOLVING_KEYWORDS):
-            item["problem_solving"] = 1
-        if _contains_any(window, DEPTH_KEYWORDS):
-            item["depth"] = 1
-
-        for bucket, tokens in SECTION_BUCKETS.items():
-            if _contains_any(window, tokens):
-                item["section_hits"].add(bucket)
 
         years = [int(y) for y in YEAR_PATTERN.findall(window)]
         if years:
@@ -113,20 +249,19 @@ def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[s
     for skill, item in evidence.items():
         mentions = int(item["mentions"])
         latest_year = item["latest_year"]
+        llm_item = gemini_scores.get(skill, {})
 
-        explicit_mention = 1.0 if mentions > 0 else 0.0
-        project_usage = float(item["project_usage"])
-        real_world_application = float(item["real_world"])
-        multiple_usage = 1.0 if mentions >= 2 else 0.0
-        recent_usage = 1.0 if latest_year is not None and latest_year >= current_year - 2 else 0.0
-        impact_evidence = float(item["impact"])
-
-        ecosystem_tokens = TOOL_ECOSYSTEM_MAP.get(skill, set())
-        tool_ecosystem = 1.0 if ecosystem_tokens and _contains_any(normalized_text, ecosystem_tokens) else 0.0
-
-        problem_solving = float(item["problem_solving"])
-        depth_indicator = float(item["depth"])
-        consistency = 1.0 if len(item["section_hits"]) >= 2 else 0.0
+        explicit_mention = float(llm_item.get("explicit_mention", 1.0 if mentions > 0 else 0.0))
+        project_usage = float(llm_item.get("project_usage", 0.0))
+        real_world_application = float(llm_item.get("real_world_application", 0.0))
+        multiple_usage = float(llm_item.get("multiple_usage", 1.0 if mentions >= 2 else 0.0))
+        recent_usage_by_year = 1.0 if latest_year is not None and latest_year >= current_year - 2 else 0.0
+        recent_usage = max(float(llm_item.get("recent_usage", 0.0)), recent_usage_by_year)
+        impact_evidence = float(llm_item.get("impact_evidence", 0.0))
+        tool_ecosystem = float(llm_item.get("tool_ecosystem", 0.0))
+        problem_solving = float(llm_item.get("problem_solving", 0.0))
+        depth_indicator = float(llm_item.get("depth_indicator", 0.0))
+        consistency = float(llm_item.get("consistency", 0.0))
 
         score_model = (
             explicit_mention
@@ -143,7 +278,8 @@ def detect_skills_with_evidence(text: str, required_skills: list[str]) -> dict[s
 
         mentions_norm = min(mentions / 4.0, 1.0)
         indicator_density = score_model / 10.0
-        confidence = clamp(0.5 * indicator_density + 0.3 * mentions_norm + 0.2 * explicit_mention, 0.0, 1.0)
+        llm_confidence = clamp(float(llm_item.get("confidence", 0.0)), 0.0, 1.0)
+        confidence = clamp(0.6 * llm_confidence + 0.25 * indicator_density + 0.15 * mentions_norm, 0.0, 1.0)
 
         scored[skill] = {
             "mentions": float(mentions),
